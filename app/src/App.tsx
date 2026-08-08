@@ -41,22 +41,27 @@ const OrderRow = React.memo(({
 export default function App() {
   const { params, setFilter } = useURLStore();
   const search = params.get('search') || '';
-  const activeStatuses = params.getAll('status') as Status[];
-  
+
+  // Serialize to a primitive so useMemo can compare by value, not reference.
+  // params.getAll() returns a new array every render — using the joined string avoids that.
+  const statusKey = params.getAll('status').join(',');
+
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // useDeferredValue ensures the input stays responsive (60fps) even while React filters the huge list
+  // useDeferredValue ensures the input stays responsive even while React filters the huge list
   const deferredSearch = useDeferredValue(search);
 
   const filteredOrders = useMemo(() => {
+    const needle = deferredSearch.toLowerCase();
+    const statuses = statusKey ? statusKey.split(',') : [];
     return ALL_ORDERS.filter(o => {
-      const matchSearch = o.id.toLowerCase().includes(deferredSearch.toLowerCase());
-      const matchStatus = activeStatuses.length === 0 || activeStatuses.includes(o.status);
+      const matchSearch = o.id.toLowerCase().includes(needle);
+      const matchStatus = statuses.length === 0 || statuses.includes(o.status);
       return matchSearch && matchStatus;
     });
-  }, [deferredSearch, activeStatuses]);
+  }, [deferredSearch, statusKey]);
 
   const focusedOrder = ALL_ORDERS.find(o => o.id === focusedId);
 
@@ -91,9 +96,10 @@ export default function App() {
   };
 
   const toggleStatus = (s: Status) => {
-    const newStatuses = activeStatuses.includes(s) 
-      ? activeStatuses.filter(x => x !== s)
-      : [...activeStatuses, s];
+    const current = statusKey ? statusKey.split(',') : [];
+    const newStatuses = current.includes(s) 
+      ? current.filter(x => x !== s)
+      : [...current, s];
     setFilter('status', newStatuses);
   };
 
@@ -118,7 +124,7 @@ export default function App() {
               {STATUSES.map(s => (
                 <button 
                   key={s}
-                  className={`status-btn ${activeStatuses.includes(s) ? 'active' : ''}`}
+                  className={`status-btn ${statusKey.split(',').includes(s) ? 'active' : ''}`}
                   onClick={() => toggleStatus(s)}
                 >
                   {s}
